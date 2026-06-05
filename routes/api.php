@@ -8,6 +8,7 @@ use App\Http\Controllers\Blog\Admin\CategoryController;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
 Route::group(['prefix' => 'blog'], function () {
     Route::apiResource('posts', PostController::class)->names('blog.posts');
 });
@@ -16,11 +17,17 @@ $groupData = [
     'namespace' => 'App\Http\Controllers\Blog\Admin',
     'prefix' => 'admin/blog',
 ];
+
 Route::group($groupData, function () {
-    //BlogCategory
-    $methods = ['index','store','update',];
+
+    // BlogCategory
+    $methods = ['index', 'store', 'update'];
     Route::apiResource('categories', CategoryController::class)
         ->only($methods)
         ->names('blog.admin.categories');
-});
 
+    // BlogPost
+    Route::apiResource('posts', 'PostController')
+        ->except(['show'])
+        ->names('blog.admin.posts');
+});
