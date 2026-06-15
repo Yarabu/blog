@@ -28,7 +28,6 @@ Route::group($groupData, function () {
 
     // BlogPost
     Route::apiResource('posts', 'PostController')
-        ->except(['show'])
         ->names('blog.admin.posts');
 });
 

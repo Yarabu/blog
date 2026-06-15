@@ -44,9 +44,13 @@ class PostController extends BaseController
         }
     }
 
-    public function show(string $id)
+    public function show($id)
     {
-        //
+        // Шукаємо пост за ID і одразу підтягуємо його категорію та автора
+        $post = \App\Models\BlogPost::with(['category', 'user'])->findOrFail($id);
+
+        // Повертаємо у форматі JSON
+        return response()->json(['data' => $post]);
     }
 
     public function update(Request $request, string $id)
