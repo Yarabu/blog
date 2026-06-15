@@ -12,6 +12,7 @@ use App\Http\Requests\BlogPostCreateRequest;
 use App\Jobs\BlogPostAfterCreateJob;
 use App\Jobs\BlogPostAfterDeleteJob;
 use Illuminate\Foundation\Bus\DispatchesJobs;
+use App\Http\Resources\Api\Blog\Admin\PostResource;
 
 class PostController extends BaseController
 {
@@ -22,11 +23,16 @@ class PostController extends BaseController
         parent::__construct();
     }
 
+    /**
+     * Display a listing of the resource.
+     */
     public function index()
     {
+        // Отримуємо пагіновані дані з репозиторія
         $paginator = $this->blogPostRepository->getAllWithPaginate();
 
-        return $paginator;
+        // Обгортаємо пагінацію в API Ресурс
+        return PostResource::collection($paginator);
     }
 
     public function store(BlogPostCreateRequest $request)
