@@ -26,10 +26,20 @@ class PostController extends BaseController
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
+        $perPage = (int) $request->input('per_page', 25);
+        $search = $request->input('search');
+
+        if ($perPage < 1) {
+            $perPage = 25;
+        }
+
+        if ($perPage > 100) {
+            $perPage = 100;
+        }
         // Отримуємо пагіновані дані з репозиторія
-        $paginator = $this->blogPostRepository->getAllWithPaginate();
+        $paginator = $this->blogPostRepository->getAllWithPaginate($perPage, $search);
 
         // Обгортаємо пагінацію в API Ресурс
         return PostResource::collection($paginator);
@@ -37,59 +47,100 @@ class PostController extends BaseController
 
     public function store(BlogPostCreateRequest $request)
     {
-        $data = $request->input(); //отримаємо масив даних, які надійшли з форми
+        $data = $request->validated();
 
-        $item = (new BlogPost())->create($data); //створюємо об'єкт і додаємо в БД
+        $item = BlogPost::create($data);
 
         if ($item) {
             $job = new BlogPostAfterCreateJob($item);
             $this->dispatch($job);
-            return ['success' => 'Успішно збережено'];
-        } else {
-            return ['msg' => 'Помилка збереження'];
+
+            $item->load(['category', 'user']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Успішно збережено',
+                'data' => new PostResource($item),
+            ], 201);
         }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Помилка збереження',
+        ], 500);
     }
 
     public function show($id)
     {
-        // Шукаємо пост за ID і одразу підтягуємо його категорію та автора
-        $post = \App\Models\BlogPost::with(['category', 'user'])->findOrFail($id);
+        $post = BlogPost::with(['category', 'user'])->find($id);
 
-        // Повертаємо у форматі JSON
-        return response()->json(['data' => $post]);
+        if (empty($post)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Запис id=[{$id}] не знайдено",
+            ], 404);
+        }
+
+        return new PostResource($post);
     }
 
     public function update(Request $request, string $id)
     {
         $item = $this->blogPostRepository->getEdit($id);
-        if (empty($item)) { //якщо ід не знайдено
-            return ['message' => "Запис id=[{$id}] не знайдено"];
+        if (empty($item)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Запис id=[{$id}] не знайдено",
+            ], 404);
         }
 
-        $data = $request->all(); //отримаємо масив даних, які надійшли з форми
-        $result = $item->update($data); //оновлюємо дані об'єкта і зберігаємо в БД
+        $data = $request->validated();
+
+        $result = $item->update($data);
 
         if ($result) {
-            return [
+            $item->load(['category', 'user']);
+
+            return response()->json([
                 'success' => true,
-                'message' => 'Успішно збережено'
-            ];
-        } else {
-            return ['message' => 'Помилка збереження'];
+                'message' => 'Успішно збережено',
+                'data' => new PostResource($item),
+            ]);
         }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Помилка збереження',
+        ], 500);
     }
 
     public function destroy(string $id)
     {
-        $result = BlogPost::destroy($id); //софт деліт, запис лишається
+        $item = BlogPost::find($id);
+
+        if (empty($item)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Запис id=[{$id}] не знайдено",
+            ], 404);
+        }
+
+        $result = $item->delete(); //софт деліт, запис лишається
 
         //$result = BlogPost::find($id)->forceDelete(); //повне видалення з БД
 
         if ($result) {
             BlogPostAfterDeleteJob::dispatch($id)->delay(20);
-            return ['success' => true, 'message' => "Запис id=[{$id}] успішно видалено"];
-        } else {
-            return ['message' => "Помилка видалення запису id=[{$id}]"];
+
+            return response()->json([
+                'success' => true,
+                'message' => "Запис id=[{$id}] успішно видалено",
+            ]);
         }
+
+        return response()->json([
+            'success' => false,
+            'message' => "Помилка видалення запису id=[{$id}]",
+        ], 500);
     }
 }

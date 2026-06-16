@@ -23,9 +23,12 @@ class BlogPostCreateRequest extends FormRequest
      */
     public function rules()
     {
+        $postId = $this->route('post');
+
         return [
-            'title' => 'required|min:5|max:200|unique:blog_posts',
-            'slug' => 'max:200|unique:blog_posts',
+            'title' => 'required|string|min:5|max:200|unique:blog_posts,title,' . $postId,
+            'slug' => 'nullable|string|max:200|unique:blog_posts,slug,' . $postId,
+            'excerpt' => 'nullable|string|max:500',
             'content_raw' => 'required|string|min:5|max:10000',
             'category_id' => 'required|integer|exists:blog_categories,id',
         ];

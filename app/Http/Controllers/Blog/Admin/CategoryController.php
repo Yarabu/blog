@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Blog\Admin;
 
 use App\Http\Controllers\Controller;
-//use Illuminate\Http\Request;
+use Illuminate\Http\Request;
 use App\Models\BlogCategory;
 use App\Repositories\BlogCategoryRepository;
 use Illuminate\Support\Str;
@@ -20,11 +20,23 @@ class CategoryController extends BaseController
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         //dd(__METHOD__);
         //$paginator = BlogCategory::paginate(5);
-       $paginator = $this->blogCategoryRepository->getAllWithPaginate();
+
+        $perPage = (int) $request->input('per_page', 25);
+        $search = $request->input('search');
+
+        if ($perPage < 1) {
+            $perPage = 25;
+        }
+
+        if ($perPage > 100) {
+            $perPage = 100;
+        }
+
+        $paginator = $this->blogCategoryRepository->getAllWithPaginate($perPage, $search);
 
         return CategoryResource::collection($paginator);
     }
@@ -34,21 +46,26 @@ class CategoryController extends BaseController
      */
     public function store(BlogCategoryCreateRequest $request)
     {
-        $data = $request->input(); //отримаємо масив даних, які надійшли з форми
-        if (empty($data['slug'])) { //якщо псевдонім порожній
-            $data['slug'] = Str::slug($data['title']); //генеруємо псевдонім
+        $data = $request->validated();
+
+        if (empty($data['slug'])) {
+            $data['slug'] = Str::slug($data['title']);
         }
 
-        $item = (new BlogCategory())->create($data); //створюємо об'єкт і додаємо в БД
+        $item = BlogCategory::create($data);
 
         if ($item) {
-            return [
+            return response()->json([
                 'success' => true,
-                'message' => 'Успішно збережено'
-            ];
-        } else {
-            return ['message' => 'Помилка збереження'];
+                'message' => 'Успішно збережено',
+                'data' => new CategoryResource($item),
+            ], 201);
         }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Помилка збереження',
+        ], 500);
     }
 
     /**
@@ -58,6 +75,16 @@ class CategoryController extends BaseController
     {
         //dd(__METHOD__);
 
+        $item = $this->blogCategoryRepository->getEdit($id);
+
+        if (empty($item)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Категорію id=[{$id}] не знайдено",
+            ], 404);
+        }
+
+        return new CategoryResource($item);
     }
 
     /**
@@ -66,21 +93,43 @@ class CategoryController extends BaseController
     public function update(BlogCategoryUpdateRequest $request, $id)
     {
         //dd(__METHOD__);
+
         $item = $this->blogCategoryRepository->getEdit($id);
-        if (empty($item)) { //якщо ід не знайдено
-            return back() //redirect back
-            ->withErrors(['msg' => "Запис id=[{$id}] не знайдено"]) //видати помилку
-            ->withInput(); //повернути дані
+
+        if (empty($item)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Запис id=[{$id}] не знайдено",
+            ], 404);
         }
 
-        $data = $request->all(); //отримаємо масив даних, які надійшли з форми
-        $result = $item->update($data);  //оновлюємо дані об'єкта і зберігаємо в БД
+        $data = $request->validated();
+
+        if ((int) $data['parent_id'] === (int) $id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Категорія не може бути батьківською сама для себе',
+            ], 422);
+        }
+
+        if (empty($data['slug'])) {
+            $data['slug'] = Str::slug($data['title']);
+        }
+
+        $result = $item->update($data);
 
         if ($result) {
-            return ['success' => 'Успішно збережено'];
-        } else {
-            return ['msg' => 'Помилка збереження'];
+            return response()->json([
+                'success' => true,
+                'message' => 'Успішно збережено',
+                'data' => new CategoryResource($item),
+            ]);
         }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Помилка збереження',
+        ], 500);
     }
 
     /**
@@ -89,5 +138,21 @@ class CategoryController extends BaseController
     public function destroy(string $id)
     {
         //dd(__METHOD__);
+
+        $item = $this->blogCategoryRepository->getEdit($id);
+
+        if (empty($item)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Категорію id=[{$id}] не знайдено",
+            ], 404);
+        }
+
+        $item->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Категорію успішно видалено',
+        ]);
     }
 }

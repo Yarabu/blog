@@ -20,21 +20,34 @@ class BlogPostRepository extends CoreRepository
      *
      * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
      */
-    public function getAllWithPaginate()
+    public function getAllWithPaginate($perPage = 25, $search = null)
     {
-        $columns = ['id', 'title', 'slug', 'is_published', 'published_at', 'user_id', 'category_id',];
+        $columns = [
+            'id',
+            'title',
+            'slug',
+            'is_published',
+            'published_at',
+            'user_id',
+            'category_id',
+        ];
 
-        $result = $this->startConditions()
+        $query = $this->startConditions()
             ->select($columns)
-            ->orderBy('id','DESC')
+            ->orderBy('id', 'DESC')
             ->with([
                 'category' => function ($query) {
                     $query->select(['id', 'title']);
                 },
                 //'category:id,title',
                 'user:id,name',
-            ])
-            ->paginate(25);
+            ]);
+
+        if (!empty($search)) {
+            $query->where('title', 'like', '%' . $search . '%');
+        }
+
+        $result = $query->paginate($perPage);
 
         return $result;
     }
